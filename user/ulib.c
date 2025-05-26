@@ -84,15 +84,36 @@ stat(const char *n, struct stat *st)
   return r;
 }
 
+// int
+// atoi(const char *s)
+// {
+//   int n;
+
+//   n = 0;
+//   while('0' <= *s && *s <= '9')
+//     n = n*10 + *s++ - '0';
+//   return n;
+// }
+//对上面的atoi函数进行修改，增加了对负数的支持：
 int
 atoi(const char *s)
 {
   int n;
+  int sign = 1;
 
+  //跳过空白字符
+  while(*s ==' ' || *s == '\t')
+    s++;
+
+  if (*s == '-') {
+    sign = -1; //如果是负数，设置符号为-1
+    s++;
+  }
   n = 0;
-  while('0' <= *s && *s <= '9')
-    n = n*10 + *s++ - '0';
-  return n;
+  while('0' <= *s && *s <= '9') {
+    n = n*10 + (*s++ - '0');
+  }
+  return sign * n;
 }
 
 void*
