@@ -152,6 +152,7 @@ UPROGS=\
 	$U/_sleep\
 	$U/_testbug\
 	$U/_pingpong\
+	$U/_primes\
 
 
 

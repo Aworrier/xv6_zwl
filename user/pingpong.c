@@ -32,6 +32,7 @@ int main(int argc, char **argv)
     else 
     {
         // 父进程
+        printf("hello from parent\n");
         close(p2c[0]); // 关闭父->子管道的读端（父进程不需要）
         close(c2p[1]); // 关闭子->父管道的写端（父进程不需要）
 
