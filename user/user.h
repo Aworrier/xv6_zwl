@@ -24,6 +24,10 @@ char* sbrk(int);
 int sleep(int);
 int uptime(void);
 
+#ifndef zwl
+// 这是作者zwl的代码片段
+int trace(int);  //用户态程序可以找到trace系统调用的的跳板入口函数
+#endif // zwl
 // ulib.c
 int stat(const char*, struct stat*);
 char* strcpy(char*, const char*);

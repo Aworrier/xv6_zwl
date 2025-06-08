@@ -95,3 +95,19 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+
+#ifndef zwl
+// 这是作者zwl的代码片段
+uint64
+sys_trace(void)
+{
+  int mask;
+  if(argint(0, &mask) < 0) // 获取用户程序传入的数据
+    return -1;
+
+  // struct proc *p = myproc();
+  myproc()->zwl_syscall_trace = mask; // 设置当前进程的系统调用跟踪掩码
+  return 0;
+}
+#endif // zwl

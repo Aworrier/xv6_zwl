@@ -104,6 +104,10 @@ extern uint64 sys_unlink(void);
 extern uint64 sys_wait(void);
 extern uint64 sys_write(void);
 extern uint64 sys_uptime(void);
+#ifndef zwl
+// 这是作者zwl的代码片段
+extern uint64 sys_trace(void); //需要全局声明trace系统调用处理函数
+#endif // zwl
 
 static uint64 (*syscalls[])(void) = {
 [SYS_fork]    sys_fork,
@@ -127,20 +131,63 @@ static uint64 (*syscalls[])(void) = {
 [SYS_link]    sys_link,
 [SYS_mkdir]   sys_mkdir,
 [SYS_close]   sys_close,
+#ifndef zwl
+// 这是作者zwl的代码片段
+[SYS_trace]   sys_trace, //系统调用号与处理函数关联起来     
+#endif // zwl
 };
 
+// System call names for tracing
+#ifndef zwl
+// 这是作者zwl的代码片段
+const char *zwl_syscall_names[] = {
+  [SYS_fork]    "fork",
+  [SYS_exit]    "exit",
+  [SYS_wait]    "wait",
+  [SYS_pipe]    "pipe",
+  [SYS_read]    "read",
+  [SYS_kill]    "kill",
+  [SYS_exec]    "exec",
+  [SYS_fstat]   "fstat",
+  [SYS_chdir]   "chdir",
+  [SYS_dup]     "dup",
+  [SYS_getpid]  "getpid",
+  [SYS_sbrk]    "sbrk",
+  [SYS_sleep]   "sleep",
+  [SYS_uptime]  "uptime",
+  [SYS_open]    "open",
+  [SYS_write]   "write",
+  [SYS_mknod]   "mknod",
+  [SYS_unlink]  "unlink",
+  [SYS_link]    "link",
+  [SYS_mkdir]   "mkdir",
+  [SYS_close]   "close",
+  [SYS_trace]   "trace",
+};
+#endif // zwl
 void
 syscall(void)
 {
   int num;
   struct proc *p = myproc();
 
-  num = p->trapframe->a7;
+  num = p->trapframe->a7; // a7寄存器存储系统调用号
   if(num > 0 && num < NELEM(syscalls) && syscalls[num]) {
     p->trapframe->a0 = syscalls[num]();
+
+    #ifndef zwl
+    // 这是作者zwl的代码片段
+    if ( (p->zwl_syscall_trace ) & ( 1 << num) ) {
+      // 如果当前进程的系统调用跟踪掩码中包含该系统调用号，则打印跟踪信息
+      printf("%d: syscall %s -> %d\n",
+             p->pid, zwl_syscall_names[num], p->trapframe->a0);
+    }
+    #endif // zwl
   } else {
     printf("%d %s: unknown sys call %d\n",
             p->pid, p->name, num);
     p->trapframe->a0 = -1;
   }
 }
+
+

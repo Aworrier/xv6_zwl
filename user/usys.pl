@@ -36,3 +36,8 @@ entry("getpid");
 entry("sbrk");
 entry("sleep");
 entry("uptime");
+
+#ifndef zwl
+# // 这是作者zwl的代码片段
+entry("trace");  # trace 的syscall接口
+#endif // zwl

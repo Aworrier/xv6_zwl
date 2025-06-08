@@ -103,4 +103,8 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+  #ifndef zwl
+  // 这是作者zwl的代码片段
+  uint64 zwl_syscall_trace; //存储进程的系统调用跟踪掩码，用于记录那些系统调用需要被跟踪  
+  #endif // zwl
 };

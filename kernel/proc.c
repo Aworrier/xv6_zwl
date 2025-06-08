@@ -126,7 +126,10 @@ found:
   memset(&p->context, 0, sizeof(p->context));
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
-
+#ifndef zwl
+  // 这是作者zwl的代码片段
+  p->zwl_syscall_trace = 0; // Initialize syscall trace mask to 0 新进程的时候，该值初始化为0
+#endif // zwl
   return p;
 }
 
@@ -297,6 +300,10 @@ fork(void)
 
   release(&np->lock);
 
+#ifndef zwl
+  // 这是作者zwl的代码片段
+  np->zwl_syscall_trace = p->zwl_syscall_trace; // 继承父进程的系统调用跟踪掩码
+#endif // zwl
   return pid;
 }
 
