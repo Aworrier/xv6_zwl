@@ -6,7 +6,7 @@
 #include "memlayout.h"
 #include "spinlock.h"
 #include "proc.h"
-
+#include "sysinfo.h"
 uint64
 sys_exit(void)
 {
@@ -109,5 +109,29 @@ sys_trace(void)
   // struct proc *p = myproc();
   myproc()->zwl_syscall_trace = mask; // 设置当前进程的系统调用跟踪掩码
   return 0;
+}
+#endif // zwl
+
+
+#ifndef zwl
+// 这是作者zwl的代码片段
+uint64
+sys_sysinfo(void)
+{
+  struct sysinfo info; //创建一个新的info结构体实例
+
+  zwl_freebytes(&info.freemem); // 初始化info结构体
+  zwl_nproc(&info.nproc); // 获取当前进程数量
+
+  uint64 dsaddr; // 用于存储用户空间传入的地址
+  if(argaddr(0, &dsaddr) < 0) // 获取用户程序传入的地址
+      return -1; // 如果获取地址失败，返回-1
+
+  // 将info结构体的内容复制到用户空间
+  if(copyout(myproc()->pagetable, dsaddr, (char *)&info, sizeof(info)) < 0)
+      return -1;
+
+  return 0; // 成功返回0
+
 }
 #endif // zwl

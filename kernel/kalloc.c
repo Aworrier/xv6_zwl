@@ -80,3 +80,23 @@ kalloc(void)
     memset((char*)r, 5, PGSIZE); // fill with junk
   return (void*)r;
 }
+
+//获取空闲内存
+#ifndef zwl
+// 这是作者zwl的代码片段
+void  zwl_freebytes(uint64 *freemem) {
+  struct run *r;
+  r = kmem.freelist;
+  acquire(&kmem.lock);
+
+  uint64 count = 0;
+  while (r) {
+    count++;
+    r = r->next;
+  }
+  release(&kmem.lock);
+  *freemem = count * PGSIZE; // 返回空闲内存的字节数
+}
+#endif // zwl
+
+

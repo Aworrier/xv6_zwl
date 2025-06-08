@@ -107,6 +107,7 @@ extern uint64 sys_uptime(void);
 #ifndef zwl
 // 这是作者zwl的代码片段
 extern uint64 sys_trace(void); //需要全局声明trace系统调用处理函数
+extern uint64 sys_sysinfo(void); //需要全局声明sysinfo系统调用处理函数
 #endif // zwl
 
 static uint64 (*syscalls[])(void) = {
@@ -134,6 +135,7 @@ static uint64 (*syscalls[])(void) = {
 #ifndef zwl
 // 这是作者zwl的代码片段
 [SYS_trace]   sys_trace, //系统调用号与处理函数关联起来     
+[SYS_sysinfo] sys_sysinfo, // sysinfo系统调用处理函数
 #endif // zwl
 };
 
@@ -163,6 +165,7 @@ const char *zwl_syscall_names[] = {
   [SYS_mkdir]   "mkdir",
   [SYS_close]   "close",
   [SYS_trace]   "trace",
+  [SYS_sysinfo] "sysinfo", // sysinfo系统调用
 };
 #endif // zwl
 void

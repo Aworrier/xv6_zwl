@@ -23,5 +23,12 @@
 
 #ifndef zwl
 // 这是作者zwl的代码片段
-#define SYS_trace 22
+#define SYS_trace 22 // trace系统调用号
+
+#endif // zwl
+
+#ifndef zwl
+// 这是作者zwl的代码片段
+#define SYS_sysinfo 23 // sysinfo系统调用号
+
 #endif // zwl

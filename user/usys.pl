@@ -41,3 +41,5 @@ entry("uptime");
 # // 这是作者zwl的代码片段
 entry("trace");  # trace 的syscall接口
 #endif // zwl
+
+entry("sysinfo");

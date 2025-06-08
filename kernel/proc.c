@@ -700,3 +700,21 @@ procdump(void)
     printf("\n");
   }
 }
+
+#ifndef zwl
+// 这是作者zwl的代码片段
+void
+zwl_nproc(uint64 *nproc)
+{
+  int count = 0;
+  struct proc *p;
+
+  for(p = proc; p < &proc[NPROC]; p++) {
+    if(p->state != UNUSED) {
+      count++;
+    }
+  }
+
+  *nproc = count;
+}
+#endif // zwl
