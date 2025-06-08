@@ -9,7 +9,7 @@
 /*
  * the kernel's page table.
  */
-pagetable_t kernel_pagetable;
+pagetable_t kernel_pagetable;  //这应该是所有进程的共享页表
 
 extern char etext[];  // kernel.ld sets this to end of kernel code.
 
@@ -18,34 +18,79 @@ extern char trampoline[]; // trampoline.S
 /*
  * create a direct-map page table for the kernel.
  */
+// 该函数被重构。 原来是共享内核态页表，现在是每个进程单独一个页表
+// void
+// kvminit()
+// {
+//   kernel_pagetable = (pagetable_t) kalloc();
+//   memset(kernel_pagetable, 0, PGSIZE);
+
+//   // uart registers
+//   kvmmap(UART0, UART0, PGSIZE, PTE_R | PTE_W);
+
+//   // virtio mmio disk interface
+//   kvmmap(VIRTIO0, VIRTIO0, PGSIZE, PTE_R | PTE_W);
+
+//   // CLINT
+//   kvmmap(CLINT, CLINT, 0x10000, PTE_R | PTE_W);
+
+//   // PLIC
+//   kvmmap(PLIC, PLIC, 0x400000, PTE_R | PTE_W);
+
+//   // map kernel text executable and read-only.
+//   kvmmap(KERNBASE, KERNBASE, (uint64)etext-KERNBASE, PTE_R | PTE_X);
+
+//   // map kernel data and the physical RAM we'll make use of.
+//   kvmmap((uint64)etext, (uint64)etext, PHYSTOP-(uint64)etext, PTE_R | PTE_W);
+
+//   // map the trampoline for trap entry/exit to
+//   // the highest virtual address in the kernel.
+//   kvmmap(TRAMPOLINE, (uint64)trampoline, PGSIZE, PTE_R | PTE_X);
+// }
+
+#ifndef zwl
+// 这是作者zwl的代码片段
 void
 kvminit()
 {
-  kernel_pagetable = (pagetable_t) kalloc();
-  memset(kernel_pagetable, 0, PGSIZE);
+  kernel_pagetable = zwl_kvminit_newpgtbl();
+}
 
+pagetable_t zwl_kvminit_newpgtbl()
+{
+  pagetable_t pgtbl_new = (pagetable_t) kalloc();
+  memset(pgtbl_new, 0, PGSIZE);
+  
+  zwl_kvm_map_pagetable(pgtbl_new);
+  
+  return pgtbl_new;
+}
+
+void zwl_kvm_map_pagetable(pagetable_t pgtbl_new)
+{
   // uart registers
-  kvmmap(UART0, UART0, PGSIZE, PTE_R | PTE_W);
-
+  kvmmap(pgtbl_new, UART0, UART0,PGSIZE, PTE_R | PTE_W);
+  
   // virtio mmio disk interface
-  kvmmap(VIRTIO0, VIRTIO0, PGSIZE, PTE_R | PTE_W);
-
+  kvmmap(pgtbl_new, VIRTIO0, VIRTIO0,PGSIZE, PTE_R | PTE_W);
+  
   // CLINT
-  kvmmap(CLINT, CLINT, 0x10000, PTE_R | PTE_W);
-
+  kvmmap(pgtbl_new, CLINT, CLINT, 0x10000, PTE_R | PTE_W);
+  
   // PLIC
-  kvmmap(PLIC, PLIC, 0x400000, PTE_R | PTE_W);
-
+  kvmmap(pgtbl_new, PLIC, PLIC, 0x400000, PTE_R | PTE_W);
+  
   // map kernel text executable and read-only.
-  kvmmap(KERNBASE, KERNBASE, (uint64)etext-KERNBASE, PTE_R | PTE_X);
-
+  kvmmap(pgtbl_new, KERNBASE, KERNBASE, (uint64)etext-KERNBASE, PTE_R | PTE_X);
+  
   // map kernel data and the physical RAM we'll make use of.
-  kvmmap((uint64)etext, (uint64)etext, PHYSTOP-(uint64)etext, PTE_R | PTE_W);
-
+  kvmmap(pgtbl_new, (uint64)etext, (uint64)etext, PHYSTOP-(uint64)etext, PTE_R | PTE_W);
+  
   // map the trampoline for trap entry/exit to
   // the highest virtual address in the kernel.
-  kvmmap(TRAMPOLINE, (uint64)trampoline, PGSIZE, PTE_R | PTE_X);
+  kvmmap(pgtbl_new, TRAMPOLINE, (uint64)trampoline, PGSIZE, PTE_R | PTE_X);
 }
+#endif // zwl
 
 // Switch h/w page table register to the kernel's page table,
 // and enable paging.
@@ -114,10 +159,17 @@ walkaddr(pagetable_t pagetable, uint64 va)
 // add a mapping to the kernel page table.
 // only used when booting.
 // does not flush TLB or enable paging.
+// 重构kvmmap函数(添加第一个参数pagetable)， 该函数功能是将某个虚拟地址映射到物理地址上
+// void
+// kvmmap(uint64 va, uint64 pa, uint64 sz, int perm)
+// {
+//   if(mappages(kernel_pagetable, va, sz, pa, perm) != 0)
+//     panic("kvmmap");
+// }
 void
-kvmmap(uint64 va, uint64 pa, uint64 sz, int perm)
+kvmmap(pagetable_t pagetable, uint64 va, uint64 pa, uint64 sz, int perm)
 {
-  if(mappages(kernel_pagetable, va, sz, pa, perm) != 0)
+  if(mappages(pagetable, va, sz, pa, perm) != 0)
     panic("kvmmap");
 }
 
@@ -125,20 +177,35 @@ kvmmap(uint64 va, uint64 pa, uint64 sz, int perm)
 // a physical address. only needed for
 // addresses on the stack.
 // assumes va is page aligned.
-uint64
-kvmpa(uint64 va)
+// 重构kvmpa函数(添加第一个参数pagetable)， 该函数功能是将某个虚拟地址转换为物理地址
+// uint64
+// kvmpa(uint64 va)
+// {
+//   uint64 off = va % PGSIZE;
+//   pte_t *pte;
+//   uint64 pa;
+  
+//   pte = walk(kernel_pagetable, va, 0);
+//   if(pte == 0)
+//     panic("kvmpa");
+//   if((*pte & PTE_V) == 0)
+//     panic("kvmpa");
+//   pa = PTE2PA(*pte);
+//   return pa+off;
+// }
+uint64 kvmpa(pagetable_t pagetable, uint64 va)
 {
   uint64 off = va % PGSIZE;
   pte_t *pte;
   uint64 pa;
-  
-  pte = walk(kernel_pagetable, va, 0);
+
+  pte = walk(pagetable, va, 0);  //原来的kernel_pagetable改为传入的pagetable
   if(pte == 0)
     panic("kvmpa");
   if((*pte & PTE_V) == 0)
     panic("kvmpa");
   pa = PTE2PA(*pte);
-  return pa+off;
+  return pa + off;
 }
 
 // Create PTEs for virtual addresses starting at va that refer to
@@ -474,5 +541,23 @@ int zwl_vmprint(pagetable_t pagetable)
   printf("page table %p\n", pagetable);
   zwl_pgtblprint(pagetable, 0);
   return 0;
+}
+
+//递归释放一个内核页表中的所有映射，但是不释放其指向的物理页
+void
+zwl_kvm_free_kernelpgtbl(pagetable_t pagetable)
+{
+  for(int i = 0; i < 512; i++) {
+    pte_t pte = pagetable[i];
+    if (pte & PTE_V) { // PTE_V标志表示该PTE有效
+      if((pte & (PTE_R | PTE_W | PTE_X)) == 0) {
+        //如果节点不是叶子节点，递归释放子节点
+        pagetable_t child = (pagetable_t)PTE2PA(pte);
+        zwl_kvm_free_kernelpgtbl(child);
+      }
+      pagetable[i] = 0; //清除映射
+    }
+  }
+  kfree((void*)pagetable); //释放页表本身
 }
 #endif // zwl

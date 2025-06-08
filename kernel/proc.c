@@ -34,12 +34,15 @@ procinit(void)
       // Allocate a page for the process's kernel stack.
       // Map it high in memory, followed by an invalid
       // guard page.
-      char *pa = kalloc();
-      if(pa == 0)
-        panic("kalloc");
-      uint64 va = KSTACK((int) (p - proc));
-      kvmmap(va, (uint64)pa, PGSIZE, PTE_R | PTE_W);
-      p->kstack = va;
+      // char *pa = kalloc();
+      // if(pa == 0)
+      //   panic("kalloc");
+      // uint64 va = KSTACK((int) (p - proc));
+      // kvmmap(va, (uint64)pa, PGSIZE, PTE_R | PTE_W);
+      // p->kstack = va;
+
+      //注释掉上面的几行代码，(为所有进程预分配内核栈的代码)，修改流程为：
+      // 创建进程时候的时候，再创建内核栈
   }
   kvminithart();
 }
@@ -121,6 +124,17 @@ found:
     return 0;
   }
 
+  //新进程创建独立的内核页表，将内核所需要的各种映射添加到新页表
+  p->zwl_pagetable = zwl_kvminit_newpgtbl();
+  //这里分配一个物理页，作为新进程的内核栈使用
+  char *pa = kalloc();
+  if(pa == 0){
+    panic("kalloc");
+  }
+  uint64 va = KSTACK((int) (p - proc)); //内核栈映射到固定的逻辑地址
+  kvmmap(p->zwl_pagetable, va , (uint64)pa,PGSIZE, PTE_R | PTE_W);
+  p->kstack = va; // 内核栈的虚拟地址
+
   // Set up new context to start executing at forkret,
   // which returns to user space.
   memset(&p->context, 0, sizeof(p->context));
@@ -149,6 +163,18 @@ freeproc(struct proc *p)
   p->chan = 0;
   p->killed = 0;
   p->xstate = 0;
+
+
+  //释放进程中的内核栈
+  void* kstack_pa = (void*)kvmpa(p->zwl_pagetable, p->kstack); //获取虚拟地址
+  kfree(kstack_pa); //释放物理页
+  p->kstack = 0;
+
+  //不能使用 proc_freepagetable(p->pagetable, p->sz) 释放内核态页表, 因为这不仅会释放页表本身，
+  // 还会把页表所有的叶节点对。 这会导致内核运行所需要的关键物理页表被释放掉，造成内核崩溃
+  zwl_kvm_free_kernelpgtbl(p->zwl_pagetable);
+  p->zwl_pagetable = 0;
+
   p->state = UNUSED;
 }
 
@@ -473,7 +499,15 @@ scheduler(void)
         // before jumping back to us.
         p->state = RUNNING;
         c->proc = p;
+
+        // 切换到进程独立的内核页表
+        w_satp(MAKE_SATP(p->zwl_pagetable));
+        sfence_vma();  //清楚快表缓存，刷新TLB缓存，却表地址转换表的更换生效
+
+        //调度，执行进程
         swtch(&c->context, &p->context);
+
+        kvminithart(); // 切换回全局内核页表
 
         // Process is done running for now.
         // It should have changed its p->state before coming back.

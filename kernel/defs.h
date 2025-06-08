@@ -160,8 +160,13 @@ int             uartgetc(void);
 // vm.c
 void            kvminit(void);
 void            kvminithart(void);
-uint64          kvmpa(uint64);
-void            kvmmap(uint64, uint64, uint64, int);
+
+//修改两个函数声明(添加第一个参数)
+// uint64          kvmpa(uint64);
+// void            kvmmap(uint64, uint64, uint64, int);
+uint64          kvmpa(pagetable_t,uint64);
+void            kvmmap(pagetable_t,uint64, uint64, uint64, int);
+
 int             mappages(pagetable_t, uint64, uint64, uint64, int);
 pagetable_t     uvmcreate(void);
 void            uvminit(pagetable_t, uchar *, uint);
@@ -180,7 +185,11 @@ int             copyin(pagetable_t, char *, uint64, uint64);
 int             copyinstr(pagetable_t, char *, uint64, uint64);
 #ifndef zwl
 // 这是作者zwl的代码片段
-int            zwl_vmprint(pagetable_t pagetable); //打印页表内容函数的声明    
+int             zwl_vmprint(pagetable_t pagetable); //打印页表内容函数的声明  
+pagetable_t     zwl_kvminit_newpgtbl(); //创建新的内核页表函数的声明
+void zwl_kvm_map_pagetable(pagetable_t pgtbl_new); //映射内核页表函数的声明
+void            zwl_kvm_free_kernelpgtbl(pagetable_t pagetable); //释放内核页表所有映射，但是不释放物理页  
+
 #endif // zwl
 
 // plic.c
