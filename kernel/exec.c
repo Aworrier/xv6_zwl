@@ -116,6 +116,13 @@ exec(char *path, char **argv)
   p->trapframe->sp = sp; // initial stack pointer
   proc_freepagetable(oldpagetable, oldsz);
 
+  #ifndef zwl
+  // 这是作者zwl的代码片段
+  if(p->pid == 1){
+    zwl_vmprint(p->pagetable);
+  }
+  #endif // zwl
+  
   return argc; // this ends up in a0, the first argument to main(argc, argv)
 
  bad:

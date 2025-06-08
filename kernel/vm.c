@@ -440,3 +440,39 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
     return -1;
   }
 }
+
+#ifndef zwl
+// 这是作者zwl的代码片段
+int zwl_pgtblprint(pagetable_t pagetable, int level)
+{
+  // 存在2^9 = 512个PTEs在一个页表中
+  for (int i = 0; i < 512; i++) {
+    pte_t pte = pagetable[i];
+    if (pte & PTE_V) { // PTE_V标志表示该PTE有效
+      printf("..");
+      for (int j = 0; j < level; j++) {
+        printf(" ..");
+      }
+      // printf("PTE[%d] = %p, PA = %p.\n", i, pte, PTE2PA(pte));
+      printf("%d: pte %p pa %p\n", i, pte, PTE2PA(pte));
+      //如果节点不是叶子节点，递归打印子节点
+      if((pte & (PTE_R | PTE_W | PTE_X)) == 0) {
+        pagetable_t child = (pagetable_t)PTE2PA(pte);
+        zwl_pgtblprint(child, level + 1);
+      } 
+      // else {
+      //   printf("This is a leaf node.\n");
+      // }
+    }
+  }
+  return 0;
+}
+
+int zwl_vmprint(pagetable_t pagetable)
+{
+  // printf("zwl_vmprint: page table = %p\n", pagetable);
+  printf("page table %p\n", pagetable);
+  zwl_pgtblprint(pagetable, 0);
+  return 0;
+}
+#endif // zwl
