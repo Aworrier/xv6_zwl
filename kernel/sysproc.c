@@ -58,6 +58,11 @@ sys_sleep(void)
   int n;
   uint ticks0;
 
+  #ifndef zwl
+  // 这是作者zwl的代码片段
+  zwl_backtrace(); //加上调用函数
+  #endif // zwl
+  
   if(argint(0, &n) < 0)
     return -1;
   acquire(&tickslock);

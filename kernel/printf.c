@@ -132,3 +132,17 @@ printfinit(void)
   initlock(&pr.lock, "pr");
   pr.locking = 1;
 }
+
+#ifndef zwl
+// 这是作者zwl的代码片段
+//遍历帧指针打印函数的地址
+void zwl_backtrace(){
+  uint64 fp = r_fp();
+  printf("backtrace:\n");
+  while(PGROUNDDOWN(fp) != PGROUNDUP(fp)){
+    uint64 ra = *(uint64*)(fp-8); // 获取返回地址
+    printf("%p\n", ra); // 打印返回地址
+    fp = *(uint64*)(fp-16); // 获取上一个帧指针
+}
+}
+#endif // zwl

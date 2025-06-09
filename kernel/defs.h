@@ -80,6 +80,11 @@ int             pipewrite(struct pipe*, uint64, int);
 void            printf(char*, ...);
 void            panic(char*) __attribute__((noreturn));
 void            printfinit(void);
+#ifndef zwl
+// 这是作者zwl的代码片段
+void            zwl_backtrace();
+#endif // zwl
+
 
 // proc.c
 int             cpuid(void);

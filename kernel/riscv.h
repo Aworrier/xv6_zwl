@@ -352,3 +352,15 @@ sfence_vma()
 
 typedef uint64 pte_t;
 typedef uint64 *pagetable_t; // 512 PTEs
+
+
+#ifndef zwl
+// 这是作者zwl的代码片段
+// zwl: read the frame pointer, which is used for stack unwinding.
+static inline uint64
+r_fp(){
+  uint64 x;
+  asm volatile("mv %0, fp" : "=r" (x) );
+  return x;
+}
+#endif // zwl
