@@ -54,6 +54,8 @@ void
 kvminit()
 {
   kernel_pagetable = zwl_kvminit_newpgtbl();
+  // 全局内核页表仍然需要映射CLINT
+  kvmmap(kernel_pagetable, CLINT, CLINT, 0x10000, PTE_R | PTE_W);
 }
 
 pagetable_t zwl_kvminit_newpgtbl()
@@ -75,7 +77,7 @@ void zwl_kvm_map_pagetable(pagetable_t pgtbl_new)
   kvmmap(pgtbl_new, VIRTIO0, VIRTIO0,PGSIZE, PTE_R | PTE_W);
   
   // CLINT
-  kvmmap(pgtbl_new, CLINT, CLINT, 0x10000, PTE_R | PTE_W);
+  // kvmmap(pgtbl_new, CLINT, CLINT, 0x10000, PTE_R | PTE_W);
   
   // PLIC
   kvmmap(pgtbl_new, PLIC, PLIC, 0x400000, PTE_R | PTE_W);
@@ -443,69 +445,84 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 // Copy from user to kernel.
 // Copy len bytes to dst from virtual address srcva in a given page table.
 // Return 0 on success, -1 on error.
-int
-copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
-{
-  uint64 n, va0, pa0;
+// int
+// copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
+// {
+//   uint64 n, va0, pa0;
 
-  while(len > 0){
-    va0 = PGROUNDDOWN(srcva);
-    pa0 = walkaddr(pagetable, va0);
-    if(pa0 == 0)
-      return -1;
-    n = PGSIZE - (srcva - va0);
-    if(n > len)
-      n = len;
-    memmove(dst, (void *)(pa0 + (srcva - va0)), n);
+//   while(len > 0){
+//     va0 = PGROUNDDOWN(srcva);
+//     pa0 = walkaddr(pagetable, va0);
+//     if(pa0 == 0)
+//       return -1;
+//     n = PGSIZE - (srcva - va0);
+//     if(n > len)
+//       n = len;
+//     memmove(dst, (void *)(pa0 + (srcva - va0)), n);
 
-    len -= n;
-    dst += n;
-    srcva = va0 + PGSIZE;
-  }
-  return 0;
-}
+//     len -= n;
+//     dst += n;
+//     srcva = va0 + PGSIZE;
+//   }
+//   return 0;
+// }
+
+
 
 // Copy a null-terminated string from user to kernel.
 // Copy bytes to dst from virtual address srcva in a given page table,
 // until a '\0', or max.
 // Return 0 on success, -1 on error.
+// int
+// copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
+// {
+  //   uint64 n, va0, pa0;
+  //   int got_null = 0;
+  
+  //   while(got_null == 0 && max > 0){
+    //     va0 = PGROUNDDOWN(srcva);
+    //     pa0 = walkaddr(pagetable, va0);
+    //     if(pa0 == 0)
+    //     return -1;
+    //     n = PGSIZE - (srcva - va0);
+    //     if(n > max)
+    //     n = max;
+    
+    //     char *p = (char *) (pa0 + (srcva - va0));
+    //     while(n > 0){
+      //       if(*p == '\0'){
+        //         *dst = '\0';
+        //         got_null = 1;
+        //         break;
+        //       } else {
+          //         *dst = *p;
+          //       }
+          //       --n;
+          //       --max;
+          //       p++;
+          //       dst++;
+          //     }
+          
+          //     srcva = va0 + PGSIZE;
+          //   }
+          //   if(got_null){
+            //     return 0;
+            //   } else {
+              //     return -1;
+              //   }
+              // }
+              
+//重构copyin和copyinstr函数，改为转发到新函数
+int
+copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
+{
+  return copyin_new(pagetable, dst, srcva, len);
+}
+
 int
 copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
 {
-  uint64 n, va0, pa0;
-  int got_null = 0;
-
-  while(got_null == 0 && max > 0){
-    va0 = PGROUNDDOWN(srcva);
-    pa0 = walkaddr(pagetable, va0);
-    if(pa0 == 0)
-      return -1;
-    n = PGSIZE - (srcva - va0);
-    if(n > max)
-      n = max;
-
-    char *p = (char *) (pa0 + (srcva - va0));
-    while(n > 0){
-      if(*p == '\0'){
-        *dst = '\0';
-        got_null = 1;
-        break;
-      } else {
-        *dst = *p;
-      }
-      --n;
-      --max;
-      p++;
-      dst++;
-    }
-
-    srcva = va0 + PGSIZE;
-  }
-  if(got_null){
-    return 0;
-  } else {
-    return -1;
-  }
+  return copyinstr_new(pagetable, dst, srcva, max);
 }
 
 #ifndef zwl
@@ -560,4 +577,70 @@ zwl_kvm_free_kernelpgtbl(pagetable_t pagetable)
   }
   kfree((void*)pagetable); //释放页表本身
 }
+#endif // zwl
+
+#ifndef zwl
+// 这是作者zwl的代码片段
+// 将src 页表的一部分页映射关系拷贝到dst页表中。只拷贝表项，不拷贝实际的物理页内存
+int
+zwl_kvmcopymappings(pagetable_t src, pagetable_t dst, uint64 start, uint64 sz)
+{
+  pte_t *pte;
+  uint64 pa, i;
+  uint  flags;
+  // printf("zwl_kvmcopymappings: src=%p dst=%p start=0x%p sz=0x%p\n", 
+          //  src, dst, start, sz);
+  // printf("MAXVA :%p\n", MAXVA);
+  // PGROUNDUP将地址向上对齐到页大小的边界,防止重新映射已经映射的页，特别是执行growproc操作
+  for ( i = PGROUNDUP(start); i < start + sz ; i += PGSIZE) {
+      pte = walk(src,i,0);
+      if( pte == 0) {
+        panic("zwl_kvmcopymappings: pte should exist");
+        // continue;
+      }
+      if ( (*pte & PTE_V) == 0) {
+        // printf("zwl_kvmcopymappings: page not present at %p\n", i);
+        panic("zwl_kvmcopymappings: page not present");
+        continue;
+      }
+      pa = PTE2PA(*pte);
+
+      //'& ~PTE_U'表示清除用户访问权限
+      flags = PTE_FLAGS(*pte) & ~PTE_U; //清除用户访问权限
+      if ((mappages(dst, i, PGSIZE, pa, flags)) != 0) {
+        // panic("zwl_kvmcopymappings: mappages failed");
+        goto err; //如果映射失败，跳转到错误处理
+      }
+
+  }
+  return 0;
+
+err:
+  // 如果发生错误，释放dst页表中已经分配的页
+  uvmunmap(dst, PGROUNDUP(start), ( i- PGROUNDUP(start)) / PGSIZE, 0);
+  return -1; //返回错误代码
+
+}
+#endif // zwl
+
+#ifndef zwl
+// 这是作者zwl的代码片段
+// 与uvmdealloc功能类似，将程序内存从oldsz缩减到newsz
+// 但是不释放物理页，只是清除页表映射
+uint64
+zwl_kvmdealloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
+{
+  if (newsz >= oldsz) {
+    return oldsz; //如果newsz大于等于oldsz，直接返回oldsz
+  }
+  if (PGROUNDUP(newsz) < PGROUNDUP(oldsz)) {
+    //计算需要取消映射的页数
+    int npages = (PGROUNDUP(oldsz) - PGROUNDUP(newsz)) / PGSIZE;
+    //取消映射
+    uvmunmap(pagetable, PGROUNDUP(newsz), npages, 0);
+  }
+
+  return newsz; //返回新的程序大小
+}
+
 #endif // zwl

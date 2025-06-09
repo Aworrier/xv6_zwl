@@ -51,6 +51,15 @@ exec(char *path, char **argv)
     uint64 sz1;
     if((sz1 = uvmalloc(pagetable, sz, ph.vaddr + ph.memsz)) == 0)
       goto bad;
+#ifndef zwl
+// 这是作者zwl的代码片段
+    if(sz1 >=PLIC) {
+      // 如果sz1大于等于PLIC，说明分配的内存超过了可用范围
+      // 这可能是因为程序试图加载过大的段
+      // 防止程序内存超过PLIC的范围
+      goto bad;
+    }
+#endif // zwl
     sz = sz1;
     if(ph.vaddr % PGSIZE != 0)
       goto bad;
@@ -108,6 +117,13 @@ exec(char *path, char **argv)
       last = s+1;
   safestrcpy(p->name, last, sizeof(p->name));
     
+  #ifndef zwl
+  // 这是作者zwl的代码片段
+  // 清除内核页表中对程序内存的旧映射，重新建立映射
+  uvmunmap(p->zwl_pagetable, 0, PGROUNDUP(oldsz)/PGSIZE, 0);
+  zwl_kvmcopymappings(pagetable, p->zwl_pagetable, 0, PGROUNDUP(sz));
+  #endif // zwl
+
   // Commit to the user image.
   oldpagetable = p->pagetable;
   p->pagetable = pagetable;

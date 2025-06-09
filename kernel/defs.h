@@ -189,7 +189,10 @@ int             zwl_vmprint(pagetable_t pagetable); //打印页表内容函数�
 pagetable_t     zwl_kvminit_newpgtbl(); //创建新的内核页表函数的声明
 void zwl_kvm_map_pagetable(pagetable_t pgtbl_new); //映射内核页表函数的声明
 void            zwl_kvm_free_kernelpgtbl(pagetable_t pagetable); //释放内核页表所有映射，但是不释放物理页  
-
+uint64          zwl_kvmdealloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz); //将程序内存由oldzes缩减到newsz
+int             zwl_kvmcopymappings(pagetable_t src, pagetable_t dst, uint64 start, uint64 sz); //将src 页表的一部分页映射关系拷贝到dst页表中
+int             copyin_new(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len); //新的copyin函数
+int             copyinstr_new(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max); //新的copyinstr函数
 #endif // zwl
 
 // plic.c
