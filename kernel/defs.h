@@ -150,6 +150,11 @@ void            trapinit(void);
 void            trapinithart(void);
 extern struct spinlock tickslock;
 void            usertrapret(void);
+#ifndef zwl
+// 这是作者zwl的代码片段
+int             zwl_sigalarm(int ticks, void (*handler)(void));
+int             zwl_sigreturn(void);
+#endif // zwl
 
 // uart.c
 void            uartinit(void);

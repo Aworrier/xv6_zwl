@@ -77,9 +77,19 @@ usertrap(void)
     exit(-1);
 
   // give up the CPU if this is a timer interrupt.
-  if(which_dev == 2)
+  if(which_dev == 2){
+    if(p->zwl_alarm_internal != 0 && --p->zwl_alarm_ticks <=0 && p->zwl_alarm_ticks_goingoff ==0)
+      //是否设置了时钟&&是否倒计时结束&&没有其他时钟正在运行
+      //如果一个时钟到期的时候已经有一个时钟处理函数正在运行，
+      //则会推迟到原处理函数运行王城后的下一个tick才会触发这次时钟
+    {
+      p->zwl_alarm_ticks = p->zwl_alarm_internal; // 重置时钟
+      p->zwl_alarm_ticks_goingoff = 1; // 设置时钟中断状态
+      *p->zwl_alarm_trapframe = *p->trapframe; // 保存当前进程的陷阱帧
+      p->trapframe->epc = (uint64)p->zwl_alarm_handler; // 分配新的陷阱帧
+    }
     yield();
-
+  }
   usertrapret();
 }
 
@@ -218,3 +228,25 @@ devintr()
   }
 }
 
+#ifndef zwl
+// 这是作者zwl的代码片段
+
+int zwl_sigalarm(int ticks, void (*handler)(void)) {
+  struct proc *p = myproc();
+  // if (ticks < 0 || ticks > 1000000 || handler == 0) {
+  //   return -1; // 错误的参数
+  // }
+  
+  p->zwl_alarm_internal = ticks;  
+  p->zwl_alarm_handler = handler;
+  p->zwl_alarm_ticks = ticks;
+  return 0; // 成功设置
+}
+
+int zwl_sigreturn(){
+  struct proc *p = myproc();
+  *p->trapframe = *p->zwl_alarm_trapframe; // 恢复陷阱帧
+  p->zwl_alarm_ticks_goingoff = 0; // 重置时钟中断状态
+  return 0;
+}
+#endif // zwl

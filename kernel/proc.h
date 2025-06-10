@@ -103,4 +103,15 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+
+#ifndef zwl
+// 这是作者zwl的代码片段
+  //时钟相关信息
+  int zwl_alarm_internal; // 内部周期， 为0的时候，表示禁用时钟
+  void (*zwl_alarm_handler)(void); // 时钟处理函数
+  int zwl_alarm_ticks; // 时钟信号数（ticks数量）
+  struct trapframe *zwl_alarm_trapframe; // 时钟中断时刻进程的陷阱frame, 用于恢复进程中断前的状态
+  int zwl_alarm_ticks_goingoff; // 是否已经有一个时钟中断正在执行并且还没有返还
+#endif // zwl
+
 };

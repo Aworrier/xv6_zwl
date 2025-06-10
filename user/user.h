@@ -23,6 +23,11 @@ int getpid(void);
 char* sbrk(int);
 int sleep(int);
 int uptime(void);
+#ifndef zwl
+// 这是作者zwl的代码片段
+int sigalarm(int ticks, void (*handler)(void));
+int sigreturn(void);
+#endif // zwl
 
 // ulib.c
 int stat(const char*, struct stat*);

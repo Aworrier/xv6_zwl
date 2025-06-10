@@ -113,6 +113,24 @@ found:
     return 0;
   }
 
+#ifndef zwl
+// 这是作者zwl的代码片段
+  p->zwl_alarm_trapframe = (struct trapframe *)kalloc();
+  if(p->zwl_alarm_trapframe == 0){
+    kfree((void*)p->trapframe);
+    p->trapframe = 0;
+    release(&p->lock);
+    return 0;
+  }
+  //进程创建时初始化alarm相关信息
+  p->zwl_alarm_internal = 0; // 内部周期， 为0的时候，表示禁用时钟
+  p->zwl_alarm_handler = 0; // 时钟处理函数
+  p->zwl_alarm_ticks = 0; // 时钟信号数（ticks数量）
+  p->zwl_alarm_ticks_goingoff = 0; // 是否已经有一个时钟中断正在执行并且还没有返还
+  
+#endif // zwl
+
+
   // An empty user page table.
   p->pagetable = proc_pagetable(p);
   if(p->pagetable == 0){
@@ -136,6 +154,16 @@ found:
 static void
 freeproc(struct proc *p)
 {
+#ifndef zwl
+  // 这是作者zwl的代码片段
+  if(p->zwl_alarm_trapframe)
+    kfree((void*)p->zwl_alarm_trapframe);
+  p->zwl_alarm_trapframe = 0;
+  p->zwl_alarm_internal = 0; // 内部周期， 为0的时候，表示禁用时钟
+  p->zwl_alarm_handler = 0; // 时钟处理函数
+  p->zwl_alarm_ticks = 0; // 时钟信号数（ticks数量）
+  p->zwl_alarm_ticks_goingoff = 0; // 是否已经有一个时钟中断正在执行并且还没有返还
+#endif // zwl
   if(p->trapframe)
     kfree((void*)p->trapframe);
   p->trapframe = 0;
@@ -150,6 +178,8 @@ freeproc(struct proc *p)
   p->killed = 0;
   p->xstate = 0;
   p->state = UNUSED;
+
+
 }
 
 // Create a user page table for a given process,

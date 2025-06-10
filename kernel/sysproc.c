@@ -100,3 +100,25 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+
+#ifndef zwl
+// 这是作者zwl的代码片段
+uint64
+sys_sigalarm(void)
+{
+  int n ;       //n个ticks
+  uint64 handler;    //时钟回调函数
+  if(argint(0, &n) < 0 || argaddr(1, &handler) < 0)
+    return -1;
+  
+  return zwl_sigalarm(n, (void(*)())(handler));    //调用并返回zwl_sigalarm函数
+}
+
+uint64 sys_sigreturn(void)
+{
+  return zwl_sigreturn(); //调用并返回zwl_sigreturn函数
+}
+
+//注意：每一个sys_开头的函数都会有一个对应的用户态函数
+#endif // zwl
