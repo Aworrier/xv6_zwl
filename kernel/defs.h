@@ -63,6 +63,12 @@ void            ramdiskrw(struct buf*);
 void*           kalloc(void);
 void            kfree(void *);
 void            kinit(void);
+#ifndef zwl
+// 这是作者zwl的代码片段
+void zwl_krefpage(void* pa);
+void* zwl_kcopy_n_deref(void* pa);
+#endif // zwl
+
 
 // log.c
 void            initlog(int, struct superblock*);
@@ -172,6 +178,11 @@ int             copyout(pagetable_t, uint64, char *, uint64);
 int             copyin(pagetable_t, char *, uint64, uint64);
 int             copyinstr(pagetable_t, char *, uint64, uint64);
 
+#ifndef zwl
+// 这是作者zwl的代码片段
+int zwl_uvmcheckcowpage(uint64 va);
+int zwl_uvmcowcopy(uint64 va);
+#endif // zwl
 // plic.c
 void            plicinit(void);
 void            plicinithart(void);

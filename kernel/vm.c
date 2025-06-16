@@ -6,6 +6,13 @@
 #include "defs.h"
 #include "fs.h"
 
+#ifndef zwl
+// 这是作者zwl的代码片段
+#include "spinlock.h"
+#include "proc.h"			// 加上两个需要的头文件
+
+#endif // zwl
+
 /*
  * the kernel's page table.
  */
@@ -311,7 +318,7 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
   pte_t *pte;
   uint64 pa, i;
   uint flags;
-  char *mem;
+  // char *mem; // 据说使用不到，去掉，避免编译报错
 
   for(i = 0; i < sz; i += PGSIZE){
     if((pte = walk(old, i, 0)) == 0)
@@ -319,14 +326,29 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
     if((*pte & PTE_V) == 0)
       panic("uvmcopy: page not present");
     pa = PTE2PA(*pte);
-    flags = PTE_FLAGS(*pte);
-    if((mem = kalloc()) == 0)
-      goto err;
-    memmove(mem, (char*)pa, PGSIZE);
-    if(mappages(new, i, PGSIZE, (uint64)mem, flags) != 0){
-      kfree(mem);
-      goto err;
-    }
+
+
+    // 清除父进程中所有PTE的PTE_W位，并且设置PTE_COW位，表示所在页是一个写时复制页（多个进程引用同个物理页）
+    // 如果该页本身就是不可写（只读），则不会添加这个标志位
+    if (*pte & PTE_W)
+        *pte = (*pte & ~PTE_W) | PTE_COW;  //前面是把PTE_W位清除掉，后面是把PTE_COW位设置上去
+    flags = PTE_FLAGS(*pte);   //该步骤获取当前父进程pte的标识位
+
+    //将父进程映射的b
+    //将父进程映射的物理页直接map到子进程中，权限保持和父进程一致
+    //（注意现在都是不可写，而且原本是可写的页会有新增的PTE_COW写时复制标志）
+    if (mappages(new, i, PGSIZE, (uint64)pa, flags) != 0)
+        goto err;
+    zwl_krefpage((void*)pa);         //映射的物理页的引用数+1
+
+    //以下这段复制内存的代码去除
+    // if((mem = kalloc()) == 0)
+    //   goto err;
+    // memmove(mem, (char*)pa, PGSIZE);
+    // if(mappages(new, i, PGSIZE, (uint64)mem, flags) != 0){
+    //   kfree(mem);
+    //   goto err;
+    // }
   }
   return 0;
 
@@ -357,6 +379,9 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
   uint64 n, va0, pa0;
 
   while(len > 0){
+
+    if(zwl_uvmcheckcowpage(dstva)) //检查每一页是否为COW页
+        zwl_uvmcowcopy(dstva); //如果是cow页，执行复制操作
     va0 = PGROUNDDOWN(dstva);
     pa0 = walkaddr(pagetable, va0);
     if(pa0 == 0)
@@ -440,3 +465,47 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
     return -1;
   }
 }
+
+#ifndef zwl
+// 这是作者zwl的代码片段
+int zwl_uvmcheckcowpage(uint64 va){ 
+  // struct proc *p = myproc();
+  // pte_t *pte = walk( p->pagetable, va, 0);
+  // if(pte == 0 || (*pte & PTE_V) == 0 || (*pte & PTE_COW) == 0 || va < p->sz  )
+  //   return 0; //不是写时复制页
+  // return 1; //是写时复制页
+    pte_t* pte;
+    struct proc* p = myproc();
+
+    return va < p->sz
+        && ((pte = walk(p->pagetable, va, 0)) != 0)
+        && (*pte & PTE_V)
+        && (*pte & PTE_COW);
+    //地址在进程内存范围内  &&  地址有映射  && 地址有效且是COW页
+}
+
+int zwl_uvmcowcopy(uint64 va)
+{ 
+  struct proc* p = myproc();
+  // pte_t *pte = walk(p->pagetable, va, 0);
+  pte_t *pte;
+
+  if ( (pte = walk(p->pagetable, va, 0)) ==0){
+    panic("uvmvowcopy:walk");
+  }
+
+  uint64 pa = PTE2PA(*pte);  //获取映射的物理地址
+  uint64 mem = (uint64)zwl_kcopy_n_deref((void*)pa); //分配新的物理页
+  if(mem == 0)
+    return -1; //分配失败
+  
+  uint64 flags = (PTE_FLAGS(*pte) | PTE_W )& ~PTE_COW; //恢复写权限，清楚cow标志位
+  uvmunmap(p->pagetable, PGROUNDDOWN(va), 1, 0); //取消原物理页的映射
+  
+  if (mappages(p->pagetable, va, 1, mem, flags) == -1) //新映射
+  {
+    panic("uvmcowcopy: mappages"); //映射失败
+  }
+  return 0;
+}
+#endif // zwl

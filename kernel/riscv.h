@@ -332,6 +332,12 @@ sfence_vma()
 #define PTE_X (1L << 3)
 #define PTE_U (1L << 4) // 1 -> user can access
 
+#ifndef zwl
+// 这是作者zwl的代码片段
+#define PTE_COW (1L << 8) // 用于给写时复制cow使用
+
+#endif // zwl
+
 // shift a physical address to the right place for a PTE.
 #define PA2PTE(pa) ((((uint64)pa) >> 12) << 10)
 

@@ -67,7 +67,15 @@ usertrap(void)
     syscall();
   } else if((which_dev = devintr()) != 0){
     // ok
-  } else {
+  } else if((r_scause() == 13 || r_scause() == 15) && zwl_uvmcheckcowpage(r_stval())) 
+  {
+    //发生页面错误，并且检测出错误是写时复制机制导致的页面不可写，则执行写时复制
+    if(zwl_uvmcowcopy(r_stval()) < 0) {
+      printf("usertrap(): zwl_uvmcowcopy failed pid=%d\n", p->pid);
+      p->killed = 1;
+    }
+  }
+  else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
     p->killed = 1;
