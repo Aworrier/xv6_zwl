@@ -5,6 +5,12 @@
 #include "riscv.h"
 #include "defs.h"
 #include "fs.h"
+#ifndef zwl
+// 这是作者zwl的代码片段
+#include "spinlock.h"
+#include "proc.h"			// 加上两个需要的头文件
+#endif // zwl
+
 
 /*
  * the kernel's page table.
@@ -180,17 +186,26 @@ uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
     panic("uvmunmap: not aligned");
 
   for(a = va; a < va + npages*PGSIZE; a += PGSIZE){
-    if((pte = walk(pagetable, a, 0)) == 0)
-      panic("uvmunmap: walk");
+    if((pte = walk(pagetable, a, 0)) == 0){
+      // *pte = 0;
+      continue;
+    }
+      // panic("uvmunmap: walk");
+      // {printf("debug1\n");
     if((*pte & PTE_V) == 0)
-      panic("uvmunmap: not mapped");
+    {
+      // *pte = 0;
+      continue;
+    }
+      // panic("uvmunmap: not mapped");
+      // {printf("debug2\n");
     if(PTE_FLAGS(*pte) == PTE_V)
       panic("uvmunmap: not a leaf");
     if(do_free){
       uint64 pa = PTE2PA(*pte);
       kfree((void*)pa);
     }
-    *pte = 0;
+    *pte = 0; // clear the PTE so that we don't try to free it again.
   }
 }
 
@@ -264,6 +279,7 @@ uvmdealloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
   if(PGROUNDUP(newsz) < PGROUNDUP(oldsz)){
     int npages = (PGROUNDUP(oldsz) - PGROUNDUP(newsz)) / PGSIZE;
     uvmunmap(pagetable, PGROUNDUP(newsz), npages, 1);
+    // uvmunmap(pagetable, PGROUNDUP(newsz), npages, 0);
   }
 
   return newsz;
@@ -315,9 +331,11 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
 
   for(i = 0; i < sz; i += PGSIZE){
     if((pte = walk(old, i, 0)) == 0)
-      panic("uvmcopy: pte should exist");
+      // panic("uvmcopy: pte should exist");
+      continue;
     if((*pte & PTE_V) == 0)
-      panic("uvmcopy: page not present");
+      // panic("uvmcopy: page not present");
+      continue;
     pa = PTE2PA(*pte);
     flags = PTE_FLAGS(*pte);
     if((mem = kalloc()) == 0)
@@ -355,7 +373,9 @@ int
 copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 {
   uint64 n, va0, pa0;
-
+  if (zwl_uvmshouldallocate(dstva)) {
+    zwl_uvmlazyallocate(dstva);  // 如果是惰性分配的地址，先分配物理页
+  }
   while(len > 0){
     va0 = PGROUNDDOWN(dstva);
     pa0 = walkaddr(pagetable, va0);
@@ -380,7 +400,9 @@ int
 copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
 {
   uint64 n, va0, pa0;
-
+  if (zwl_uvmshouldallocate(srcva)) {
+    zwl_uvmlazyallocate(srcva);  // 如果是惰性分配的地址，先分配物理页
+  }
   while(len > 0){
     va0 = PGROUNDDOWN(srcva);
     pa0 = walkaddr(pagetable, va0);
@@ -440,3 +462,36 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
     return -1;
   }
 }
+
+
+#ifndef zwl
+// 这是作者zwl的代码片段
+
+//判断页面是否是之前惰性分配的地址，是的话返回1
+int zwl_uvmshouldallocate(uint64 va) {
+    pte_t* pte;
+    struct proc* p = myproc();
+
+    return va < p->sz                    //确保地址在进程的内存大小范围内
+        && PGROUNDDOWN(va) != r_sp()     //确保地址不在 guard page 中
+        && (((pte = walk(p->pagetable, va, 0)) == 0) || ((*pte & PTE_V) == 0));     //确保页表项确实不存在
+}
+
+//给惰性分配的页面分配并映射物理地址
+void zwl_uvmlazyallocate(uint64 va) {
+    struct proc* p = myproc();
+    char* pa = kalloc();    //分配物理地址
+    if (pa == 0) {
+        printf("lazy alloc: out of memory\n");
+        p->killed = 1;
+    }
+    else {
+        memset(pa, 0, PGSIZE);
+        if (mappages(p->pagetable, PGROUNDDOWN(va), PGSIZE, (uint64)pa, PTE_W | PTE_X | PTE_R | PTE_U) != 0) {      //映射物理地址
+            printf("lazy alloc: failed to map page\n");
+            kfree(pa);
+            p->killed = 1;
+        }
+    }
+}
+#endif // zwl

@@ -68,11 +68,20 @@ usertrap(void)
   } else if((which_dev = devintr()) != 0){
     // ok
   } else {
-    printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
-    printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
-    p->killed = 1;
+    uint64 fault_val = r_stval(); //获取缺页异常的虚拟地址
+    if(( r_scause() == 13 || r_scause() == 15) && zwl_uvmshouldallocate(fault_val) ) { //惰性分配导致的缺页异常
+      // if (r_scause()  == 15) { //如果是页表项缺失异常
+      //   printf("usertrap(): page fault at %p pid=%d\n", fault_val, p->pid);
+      // } else if (r_scause() == 13) { //如果是页表项权限异常
+      //   printf("usertrap(): page permission fault at %p pid=%d\n", fault_val, p->pid);
+      // }
+      zwl_uvmlazyallocate(fault_val); //调用惰性分配函数:分配物理内存，并在页表创建映射
+    }else{
+      printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
+      printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
+      p->killed = 1;
+    }
   }
-
   if(p->killed)
     exit(-1);
 

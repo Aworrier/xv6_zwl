@@ -47,8 +47,19 @@ sys_sbrk(void)
   if(argint(0, &n) < 0)
     return -1;
   addr = myproc()->sz;
-  if(growproc(n) < 0)
-    return -1;
+#ifndef zwl
+  // 这是作者zwl的代码片段
+  //先注释原来的惰性分配
+  // if(growproc(n) < 0)  //惰性分配
+  //   return -1;
+  struct proc *p = myproc();
+  if (n > 0)
+    p->sz += n;
+  else if (p->sz + n > 0)  //如果是减少内存，并且还要马上执行的时候，需要去检查减去内存后是否大于0
+    p->sz = uvmdealloc(p->pagetable, p->sz, p->sz + n);
+  else  
+    return -1; //
+#endif // zwl
   return addr;
 }
 

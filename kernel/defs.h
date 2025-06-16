@@ -171,7 +171,11 @@ uint64          walkaddr(pagetable_t, uint64);
 int             copyout(pagetable_t, uint64, char *, uint64);
 int             copyin(pagetable_t, char *, uint64, uint64);
 int             copyinstr(pagetable_t, char *, uint64, uint64);
-
+#ifndef zwl
+// 这是作者zwl的代码片段
+int zwl_uvmshouldallocate(uint64 va);
+void zwl_uvmlazyallocate(uint64 va);
+#endif // zwl
 // plic.c
 void            plicinit(void);
 void            plicinithart(void);
