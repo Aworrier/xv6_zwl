@@ -10,15 +10,37 @@
 #define STACK_SIZE  8192
 #define MAX_THREAD  4
 
+#ifndef zwl
+// 这是作者zwl的代码片段
+typedef struct 
+{
+    uint64 ra;
+    uint64 sp;
+
+    // callee-saved
+    uint64 s0;
+    uint64 s1;
+    uint64 s2;
+    uint64 s3;
+    uint64 s4;
+    uint64 s5;
+    uint64 s6;
+    uint64 s7;
+    uint64 s8;
+    uint64 s9;
+    uint64 s10;
+    uint64 s11;
+}zwl_context;
+#endif // zwl
 
 struct thread {
-  char       stack[STACK_SIZE]; /* the thread's stack */
-  int        state;             /* FREE, RUNNING, RUNNABLE */
-
+  char        stack[STACK_SIZE]; /* the thread's stack */
+  int         state;             /* FREE, RUNNING, RUNNABLE */
+  zwl_context context;          //zwl创建的context
 };
 struct thread all_thread[MAX_THREAD];
 struct thread *current_thread;
-extern void thread_switch(uint64, uint64);
+extern void thread_switch(zwl_context* old, zwl_context* new);
               
 void 
 thread_init(void)
@@ -28,8 +50,10 @@ thread_init(void)
   // save thread 0's state.  thread_schedule() won't run the main thread ever
   // again, because its state is set to RUNNING, and thread_schedule() selects
   // a RUNNABLE thread.
+  
   current_thread = &all_thread[0];
   current_thread->state = RUNNING;
+  
 }
 
 void 
@@ -59,6 +83,9 @@ thread_schedule(void)
     next_thread->state = RUNNING;
     t = current_thread;
     current_thread = next_thread;
+
+    thread_switch(&t->context, &next_thread->context);  //实现线程转换
+
     /* YOUR CODE HERE
      * Invoke thread_switch to switch from t to next_thread:
      * thread_switch(??, ??);
@@ -77,6 +104,13 @@ thread_create(void (*func)())
   }
   t->state = RUNNABLE;
   // YOUR CODE HERE
+
+  // 返回地址,thread_switch线程切换执行完后返回到ra，设置成线程函数func，就可以切换后执行func
+  t->context.ra = (uint64)func;
+
+  // 栈指针，将线程的栈指针指向其独立的栈，栈的生长是从高地址到低地址，所以要将 sp 设置为指向 stack 的最高地址
+  t->context.sp = (uint64)&t->stack + (STACK_SIZE - 1);
+
 }
 
 void 
