@@ -8,6 +8,12 @@
 #define NBUCKET 5
 #define NKEYS 100000
 
+#ifndef zwl
+// 这是作者zwl的代码片段
+pthread_mutex_t lock[NBUCKET];
+
+#endif // zwl
+
 struct entry {
   int key;
   int value;
@@ -38,7 +44,9 @@ insert(int key, int value, struct entry **p, struct entry *n)
 static 
 void put(int key, int value)
 {
+  
   int i = key % NBUCKET;
+  pthread_mutex_lock(&lock[i]);  //获取锁
 
   // is the key already present?
   struct entry *e = 0;
@@ -53,6 +61,8 @@ void put(int key, int value)
     // the new is new.
     insert(key, value, &table[i], table[i]);
   }
+
+  pthread_mutex_unlock(&lock[i]);  //释放锁
 }
 
 static struct entry*
@@ -102,7 +112,7 @@ main(int argc, char *argv[])
   pthread_t *tha;
   void *value;
   double t1, t0;
-
+  
   if (argc < 2) {
     fprintf(stderr, "Usage: %s nthreads\n", argv[0]);
     exit(-1);
@@ -114,7 +124,10 @@ main(int argc, char *argv[])
   for (int i = 0; i < NKEYS; i++) {
     keys[i] = random();
   }
-
+  
+  for (int i = 0;i<NBUCKET;++i){
+    pthread_mutex_init(&lock[i],NULL);  //在实行put操作之前初始化锁
+  }
   //
   // first the puts
   //
