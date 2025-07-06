@@ -103,5 +103,9 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+  
+  #ifndef zwl
+  // 这是作者zwl的代码片段
   pagetable_t zwl_pagetable; // 存储进程单独的内核态页表
+  #endif // zwl
 };

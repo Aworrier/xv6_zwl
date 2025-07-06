@@ -50,6 +50,7 @@ extern char trampoline[]; // trampoline.S
 
 #ifndef zwl
 // 这是作者zwl的代码片段
+// 该函数是一个初始化调用接口，用于全局内核页表初始化
 void
 kvminit()
 {
@@ -57,17 +58,26 @@ kvminit()
   // 全局内核页表仍然需要映射CLINT
   kvmmap(kernel_pagetable, CLINT, CLINT, 0x10000, PTE_R | PTE_W);
 }
+#endif // zwl
 
+#ifndef zwl
+// 这是作者zwl的代码片段
+// 该函数创建一个用户的页表并初始化映射，然后返回该页表
 pagetable_t zwl_kvminit_newpgtbl()
 {
-  pagetable_t pgtbl_new = (pagetable_t) kalloc();
+  pagetable_t pgtbl_new = (pagetable_t) kalloc(); // 分配一个新的物理页表
   memset(pgtbl_new, 0, PGSIZE);
   
   zwl_kvm_map_pagetable(pgtbl_new);
   
   return pgtbl_new;
 }
+#endif // zwl
 
+#ifndef zwl
+// 这是作者zwl的代码片段
+// 该函数主要是为了将内核页表的映射关系同步到进程的独立内核页表中（用物理页进行映射）
+// 之前是只有init的时候会映射，现在每个进程的独立内核页表都可以调用该函数进行映射了
 void zwl_kvm_map_pagetable(pagetable_t pgtbl_new)
 {
   // uart registers
@@ -168,12 +178,17 @@ walkaddr(pagetable_t pagetable, uint64 va)
 //   if(mappages(kernel_pagetable, va, sz, pa, perm) != 0)
 //     panic("kvmmap");
 // }
+#ifndef zwl
+// 这是作者zwl的代码片段
+// 这里相比于以前，多出了第一个参数pagetable
+// 该函数功能是将某个虚拟地址映射到物理地址上  
 void
 kvmmap(pagetable_t pagetable, uint64 va, uint64 pa, uint64 sz, int perm)
 {
   if(mappages(pagetable, va, sz, pa, perm) != 0)
-    panic("kvmmap");
+  panic("kvmmap");
 }
+#endif // zwl
 
 // translate a kernel virtual address to
 // a physical address. only needed for
@@ -195,20 +210,25 @@ kvmmap(pagetable_t pagetable, uint64 va, uint64 pa, uint64 sz, int perm)
 //   pa = PTE2PA(*pte);
 //   return pa+off;
 // }
+#ifndef zwl
+// 这是作者zwl的代码片段
+// 这里相比于以前，多出了第一个参数pagetable
+// 该函数功能是将某个虚拟地址转换为物理地址
 uint64 kvmpa(pagetable_t pagetable, uint64 va)
 {
-  uint64 off = va % PGSIZE;
+  uint64 off = va % PGSIZE; //偏移量
   pte_t *pte;
   uint64 pa;
-
+  
   pte = walk(pagetable, va, 0);  //原来的kernel_pagetable改为传入的pagetable
   if(pte == 0)
-    panic("kvmpa");
+  panic("kvmpa");
   if((*pte & PTE_V) == 0)
-    panic("kvmpa");
+  panic("kvmpa");
   pa = PTE2PA(*pte);
   return pa + off;
 }
+#endif // zwl
 
 // Create PTEs for virtual addresses starting at va that refer to
 // physical addresses starting at pa. va and size might not
@@ -527,6 +547,8 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
 
 #ifndef zwl
 // 这是作者zwl的代码片段
+// 该函数打印页表内容
+// 递归打印页表的每一层，打印每个PTE的地址
 int zwl_pgtblprint(pagetable_t pagetable, int level)
 {
   // 存在2^9 = 512个PTEs在一个页表中
@@ -551,7 +573,11 @@ int zwl_pgtblprint(pagetable_t pagetable, int level)
   }
   return 0;
 }
+#endif // zwl
 
+#ifndef zwl
+// 这是作者zwl的代码片段
+// 该函数是打印页表的调用函数：是内核空间函数
 int zwl_vmprint(pagetable_t pagetable)
 {
   // printf("zwl_vmprint: page table = %p\n", pagetable);
@@ -559,8 +585,13 @@ int zwl_vmprint(pagetable_t pagetable)
   zwl_pgtblprint(pagetable, 0);
   return 0;
 }
+#endif // zwl
 
+#ifndef zwl
+// 这是作者zwl的代码片段
 //递归释放一个内核页表中的所有映射，但是不释放其指向的物理页
+//也就是把其中的虚拟地址映射关系清除掉
+//该函数会递归释放页表中的所有子页表
 void
 zwl_kvm_free_kernelpgtbl(pagetable_t pagetable)
 {
@@ -571,8 +602,8 @@ zwl_kvm_free_kernelpgtbl(pagetable_t pagetable)
         //如果节点不是叶子节点，递归释放子节点
         pagetable_t child = (pagetable_t)PTE2PA(pte);
         zwl_kvm_free_kernelpgtbl(child);
+        pagetable[i] = 0; //清除映射
       }
-      pagetable[i] = 0; //清除映射
     }
   }
   kfree((void*)pagetable); //释放页表本身
@@ -581,7 +612,9 @@ zwl_kvm_free_kernelpgtbl(pagetable_t pagetable)
 
 #ifndef zwl
 // 这是作者zwl的代码片段
-// 将src 页表的一部分页映射关系拷贝到dst页表中。只拷贝表项，不拷贝实际的物理页内存
+// 将src 页表的一部分页 ([start, start+sz]) 映射关系拷贝到dst页表中。
+// 用于实现​​内核地址空间的共享或迁移​
+// 只拷贝表项，不拷贝实际的物理页内存
 int
 zwl_kvmcopymappings(pagetable_t src, pagetable_t dst, uint64 start, uint64 sz)
 {

@@ -34,15 +34,17 @@ procinit(void)
       // Allocate a page for the process's kernel stack.
       // Map it high in memory, followed by an invalid
       // guard page.
+#ifndef zwl
+      // 这是作者zwl的代码片段
       // char *pa = kalloc();
       // if(pa == 0)
-      //   panic("kalloc");
+      // panic("kalloc");
       // uint64 va = KSTACK((int) (p - proc));
       // kvmmap(va, (uint64)pa, PGSIZE, PTE_R | PTE_W);
       // p->kstack = va;
-
       //注释掉上面的几行代码，(为所有进程预分配内核栈的代码)，修改流程为：
       // 创建进程时候的时候，再创建内核栈
+#endif // zwl
   }
   kvminithart();
 }
@@ -124,6 +126,10 @@ found:
     return 0;
   }
 
+#ifndef zwl
+  // 这是作者zwl的代码片段
+
+  //每个进程分配内存的时候，需要初始化它的内核独立页表
   //新进程创建独立的内核页表，将内核所需要的各种映射添加到新页表
   p->zwl_pagetable = zwl_kvminit_newpgtbl();
   //这里分配一个物理页，作为新进程的内核栈使用
@@ -134,6 +140,7 @@ found:
   uint64 va = KSTACK((int) (p - proc)); //内核栈映射到固定的逻辑地址
   kvmmap(p->zwl_pagetable, va , (uint64)pa,PGSIZE, PTE_R | PTE_W);
   p->kstack = va; // 内核栈的虚拟地址
+#endif // zwl
 
   // Set up new context to start executing at forkret,
   // which returns to user space.
@@ -172,6 +179,9 @@ freeproc(struct proc *p)
 
   //不能使用 proc_freepagetable(p->pagetable, p->sz) 释放内核态页表, 因为这不仅会释放页表本身，
   // 还会把页表所有的叶节点对。 这会导致内核运行所需要的关键物理页表被释放掉，造成内核崩溃
+  // 这些物理页的资源不是只有这一个进程用，
+  // 也就是说不同的进程的内核页表都映射同一部分物理资源，
+  // 所以不能释放物理页，只能页表地址解映射
   zwl_kvm_free_kernelpgtbl(p->zwl_pagetable);
   p->zwl_pagetable = 0;
 

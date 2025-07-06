@@ -23,6 +23,9 @@ statscopyin(char *buf, int sz) {
   return n;
 }
 
+#ifndef zwl
+// 这是作者zwl的代码片段
+// 从kernel中复制到用户空间。
 // Copy from user to kernel.
 // Copy len bytes to dst from virtual address srcva in a given page table.
 // Return 0 on success, -1 on error.
@@ -30,9 +33,9 @@ int
 copyin_new(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
 {
   struct proc *p = myproc();
-
+  
   if (srcva >= p->sz || srcva+len >= p->sz || srcva+len < srcva)
-    return -1;
+  return -1;
   memmove((void *) dst, (void *)srcva, len);
   stats.ncopyin++;   // XXX lock
   return 0;
@@ -52,7 +55,8 @@ copyinstr_new(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
   for(int i = 0; i < max && srcva + i < p->sz; i++){
     dst[i] = s[i];
     if(s[i] == '\0')
-      return 0;
+    return 0;
   }
   return -1;
 }
+#endif // zwl
